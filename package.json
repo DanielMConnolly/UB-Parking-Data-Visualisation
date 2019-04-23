@@ -12,6 +12,7 @@
   "dependencies": {
     "connect": "^3.6.6",
     "express": "^4.16.4",
+    "pm2": "^3.5.0",
     "serve-static": "^1.13.2"
   }
 }
