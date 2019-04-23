@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js">
+<!--<![endif]-->
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title></title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css"
+        integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA=="
+        crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"
+        integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg=="
+        crossorigin=""></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.js"></script>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+</head>
+
+<body>
+    <!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+    <div class="container">
+        <div id="mapid"></div>
+        <div style="display: none;" id="chartPanel">
+            <button id='close' onclick='closeWindow()'>x</button>
+            <canvas id="myChart"></canvas></div>
+    </div>
+    <script>
+        // var path=require('path');
+        var citationsCount;
+        d3.csv('/citations').then((data) => {
+            citationsCount = d3.nest()
+                .key(function (d) {
+                    return d.Location;
+                })
+                .rollup(function (v) {
+                    return v.length;
+                })
+                .entries(data);
+            citationsCount.sort((a, b) => {
+                return b["value"] - a["value"];
+            });
+            ticketsByLot = d3.nest().key(function (d) {
+                return d.Location;
+            }).key(function (d) {
+                return d.Violation;
+            })
+            .rollup(function (v){
+                return v.length;
+            })
+            .entries(data);
+            
+            return {
+              "citationsCount":  citationsCount,
+              "ticketsByLot": ticketsByLot
+                
+            };
+
+
+
+
+
+
+
+
+        }).then((data) => {
+            parkingList = {}
+            for (object of data["citationsCount"]) {
+                parkingList[object.key] = object.value;
+            }
+            ticketsByLot = {}
+            for (object of data["ticketsByLot"]){
+                ticketsByLot[object.key] = object.values;
+            }
+            let maxCount = citationsCount[0]["value"]
+            let minCount = citationsCount[citationsCount.length - 1]["value"]
+
+
+            var percentColors = [{
+                    pct: 0.0,
+                    color: {
+                        r: 0xff,
+                        g: 0x00,
+                        b: 0
+                    }
+                },
+                {
+                    pct: 0.5,
+                    color: {
+                        r: 0xff,
+                        g: 0xff,
+                        b: 0
+                    }
+                },
+                {
+                    pct: 1.0,
+                    color: {
+                        r: 0x00,
+                        g: 0xff,
+                        b: 0
+                    }
+                }
+            ];
+
+            var getColorForPercentage = function (parkingLot) {
+                let pct = 1 - parkingList[parkingLot] / maxCount;
+            
+                for (var i = 1; i < percentColors.length - 1; i++) {
+                    if (pct < percentColors[i].pct) {
+                        break;
+                    }
+                }
+                var lower = percentColors[i - 1];
+                var upper = percentColors[i];
+                var range = upper.pct - lower.pct;
+                var rangePct = (pct - lower.pct) / range;
+                var pctLower = 1 - rangePct;
+                var pctUpper = rangePct;
+                var color = {
+                    r: Math.floor(lower.color.r * pctLower + upper.color.r * pctUpper),
+                    g: Math.floor(lower.color.g * pctLower + upper.color.g * pctUpper),
+                    b: Math.floor(lower.color.b * pctLower + upper.color.b * pctUpper)
+                };
+                return 'rgb(' + [color.r, color.g, color.b].join(',') + ')';
+                // or output as hex if preferred
+            }
+
+            var mymap = L.map('mapid').setView([43.00165049553834, -78.78735780715944], 14.5);
+            mymap.invalidateSize();
+            L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox.streets',
+                accessToken: 'pk.eyJ1Ijoic25vd2Zyb2dneTIwMDgiLCJhIjoiY2lmNXlwd2lzMDl3ZnNra3R5NXV1MGlvMyJ9.R9WDmpGRkHdFz1Y_MsbG0Q'
+            }).addTo(mymap);
+            $('#mapid').click((ev) => {
+                mymap.invalidateSize();
+            });
+
+            var jarvisABounds = [
+                [43.004241, -78.789153],
+                [43.003462, -78.787841]
+            ];
+            let jarvisALot = L.rectangle(jarvisABounds, {
+                color: getColorForPercentage("Jarvis A"),
+                weight: 1
+            }).bindTooltip("Jarvis A").addTo(mymap);
+            let jarvisBBounds = [
+                [43.004226, -78.787537],
+                [43.003435, -78.786319]
+            ];
+            L.rectangle(jarvisBBounds, {
+                color: getColorForPercentage("Jarvis B"),
+                weight: 1
+            }).bindTooltip("Jarvis B").addTo(mymap);
+
+            let governorsABounds = [
+                [43.002909, -78.791195],
+                [43.002418, -78.790160]
+            ];
+            L.rectangle(governorsABounds, {
+                color: getColorForPercentage("Governors B"),
+                weight: 1
+            }).bindTooltip("Governors A").addTo(mymap);
+
+            let governorsCBounds = [
+                [43.004213, -78.791208],
+                [43.003409, -78.790161]
+            ];
+            L.rectangle(governorsCBounds, {
+                color: getColorForPercentage("Governors C"),
+                weight: 1
+            }).bindTooltip("Governors C").addTo(mymap);
+
+            let governorsDBounds = [
+                [43.004219, -78.792474],
+                [43.003398, -78.791399]
+            ];
+            L.rectangle(governorsDBounds, {
+                color: getColorForPercentage("Governors D"),
+                weight: 1
+            }).bindTooltip("Governors D").addTo(mymap);
+
+            let governorsEBounds = [
+                [43.004181, -78.794725],
+                [43.003377, -78.793606]
+            ];
+            L.rectangle(governorsEBounds, {
+                color: getColorForPercentage("Governors E"),
+                weight: 1
+            }).bindTooltip("Governors E").addTo(mymap);
+
+            let fronczakBBounds = [
+                [43.002411, -78.791176],
+                [43.001606, -78.790172]
+            ];
+            L.rectangle(fronczakBBounds, {
+                color: getColorForPercentage("Fronczak B"),
+                weight: 1
+            }).bindTooltip("Fronczak B").addTo(mymap);
+
+            let hochsetterABounds = [
+                [42.999310, -78.792171],
+                [42.998191, -78.791227]
+            ];
+            L.rectangle(hochsetterABounds, {
+                color: getColorForPercentage("Hoch A"),
+                weight: 1
+            }).bindTooltip("Hochsetter A").addTo(mymap);
+
+            let hochsetterBBounds = [
+                [42.999394, -78.790945],
+                [42.998201, -78.789846]
+            ];
+            L.rectangle(hochsetterBBounds, {
+                color: getColorForPercentage("Hoch B"),
+                weight: 1
+            }).bindTooltip("Hochsetter B").addTo(mymap);
+
+            let jacobsABounds = [
+                [42.998873, -78.788707],
+                [42.998190, -78.787755]
+            ];
+            L.rectangle(jacobsABounds, {
+                color: getColorForPercentage("Jacobs A"),
+                weight: 1
+            }).bindTooltip("Jacobs A").addTo(mymap);
+
+            let jacobsBBounds = [
+                [42.998865, -78.787484],
+                [42.998215, -78.786691]
+            ];
+            L.rectangle(jacobsBBounds, {
+                color: getColorForPercentage("Jacobs C"),
+                weight: 1
+            }).bindTooltip("Jacobs B").addTo(mymap);
+
+            let jacobsCBounds = [
+                [42.998897, -78.786432],
+                [42.998195, -78.785565]
+            ];
+            L.rectangle(jacobsCBounds, {
+                color: getColorForPercentage("Jacobs C"),
+                weight: 1
+            }).bindTooltip("Jacobs C").addTo(mymap);
+
+            let bairdABounds = [
+                [42.998891, -78.785212],
+                [42.998220, -78.784236]
+            ];
+            L.rectangle(bairdABounds, {
+                color: getColorForPercentage("Baird A"),
+                weight: 1
+            }).bindTooltip("Baird A").addTo(mymap);
+
+            let bairdBBounds = [
+                [42.999742, -78.785075],
+                [42.999154, -78.784201]
+            ];
+            L.rectangle(bairdBBounds, {
+                color: getColorForPercentage("Baird B"),
+                weight: 1
+            }).bindTooltip("Baird B").addTo(mymap).on('click', () => showChart("Baird B"));
+
+            let sleeBBounds = [
+                [42.999748, -78.783856],
+                [42.999126, -78.783024]
+            ];
+            L.rectangle(sleeBBounds, {
+                color: getColorForPercentage("Slee B"),
+                weight: 1
+            }).bindTooltip("Slee B").addTo(mymap).on('click', () => showChart("Slee B"));
+        
+            let cookeABounds = [
+                [42.999683, -78.793812],
+                [42.999317, -78.792731]
+            ];
+            L.rectangle(cookeABounds, {
+                color: getColorForPercentage("Cooke A"),
+                weight: 1
+            }).bindTooltip("Cooke A").addTo(mymap).on('click', () => showChart("Cooke A"));
+
+            let cookeBBounds = [
+                [42.999126, -78.793796],
+                [42.998325, -78.792708]
+            ];
+            L.rectangle(cookeBBounds, {
+                color: getColorForPercentage("Cooke B"),
+                weight: 1
+            }).bindTooltip("Cooke B").addTo(mymap).on('click', () => showChart("Cooke B"));;
+
+            let bookstoreBounds = [
+                [43.003395, -78.785605],
+                [43.002400, -78.784899]
+            ];
+            L.rectangle(bookstoreBounds, {
+                color: getColorForPercentage("Bookstore"),
+                weight: 1
+            }).bindTooltip("Bookstore").addTo(mymap).on('click', () => showChart("Bookstore"));;
+
+            let parkBounds = [
+                [42.999953, -78.788916],
+                [42.999472, -78.788453]
+            ];
+            L.rectangle(parkBounds, {
+                color: getColorForPercentage("Park Lot"),
+                weight: 1
+            }).bindTooltip("Park Lot").addTo(mymap).on('click', () => showChart("Park Lot"));;
+
+            let furnasBounds = [
+                [43.003035, -78.786749],
+                [43.001856, -78.786083]
+            ];
+            L.rectangle(furnasBounds, {
+                color: getColorForPercentage("Furnas"),
+                weight: 1
+            }).bindTooltip("Furnas").addTo(mymap).on('click', () => showChart("Furnas"));;
+
+            let arenaBounds = [
+                [43.001379, -78.779779],
+                [43.000237, -78.779015]
+            ];
+            L.rectangle(arenaBounds, {
+                color: getColorForPercentage("Arena"),
+                weight: 1
+            }).bindTooltip("Arena").addTo(mymap).on('click', () => showChart("Arena"));
+
+
+
+
+        });
+        let currentChart;
+        let showChart = (lot) => {
+            if(currentChart){
+                currentChart.destroy();
+            }
+            
+            let lotData = ticketsByLot[lot];
+            lotData.sort((a, b)=> {
+               return  b.value-a.value;
+            });
+            console.log(ticketsByLot[lot]);
+
+            let labels = []
+            let values = []
+            let other = 0;
+            let otherLabel = "other";
+
+            let i = 0;
+            for(object of lotData){
+                if(i<5){
+                    label = object.key;
+                    values.push(object.value);
+                    labels.push(label.toLowerCase());
+                }
+                else{
+                    other+=object.value;
+                }
+                i+=1;
+               
+            }
+            values.push(other);
+            labels.push(otherLabel);
+            var ctx = $('#myChart');
+            let chartDiv = $('#chartPanel');
+            chartDiv.css('display', 'block');
+
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Population (millions)",
+                        backgroundColor: ["#3e95cd", "#8e5ea2", "#3cba9f", "#e8c3b9", "#c45850"],
+                        data: values
+                    }]
+                },
+                options: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Types of tickets written at '+lot
+                    }
+                }
+            });
+        }
+
+        let closeWindow = () => {
+            $("#chartPanel").css("display", "none");
+        }
+    </script>
+    <style>
+        #mapid {
+            height: 80vh;
+            z-index: -1;
+        }
+
+        #container {
+            position: relative;
+        }
+
+        #chartPanel,
+        #mapid {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+
+        }
+        #close {
+            float: right;
+        }
+        #chartPanel {
+            z-index: 10;
+            width: 40%;
+            height: 50%;
+            top: 0;
+            right: 0;
+            background: white;
+        }
+    </style>
+</body>
+
+
+</html>
