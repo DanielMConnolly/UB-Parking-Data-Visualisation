@@ -19,8 +19,11 @@
         integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg=="
         crossorigin=""></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.js"></script>
     <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="slider.js"></script>
 </head>
 
 <body>
@@ -32,11 +35,26 @@
         <div style="display: none;" id="chartPanel">
             <button id='close' onclick='closeWindow()'>x</button>
             <canvas id="myChart"></canvas></div>
+
     </div>
+    <div id="slider-range"></div>
     <script>
-        // var path=require('path');
-        var citationsCount;
+        let mymap = null;
+        let loadData = (min, max) => {
+            var citationsCount;
         d3.csv('/citations').then((data) => {
+            // console.log(data);
+            // console.log(data[100]["Issue Date"]);
+            // console.log(new Date(data[100]["Issue Date"]).getHours());
+            data = data.filter(function (d){
+                     let date = new Date(d["Issue Date"]).getHours();
+                
+                    return date>min&& date<max;
+                }
+        
+                    
+                )
+            console.log(data);
             citationsCount = d3.nest()
                 .key(function (d) {
                     return d.Location;
@@ -45,23 +63,24 @@
                     return v.length;
                 })
                 .entries(data);
+                
             citationsCount.sort((a, b) => {
                 return b["value"] - a["value"];
             });
             ticketsByLot = d3.nest().key(function (d) {
-                return d.Location;
-            }).key(function (d) {
-                return d.Violation;
-            })
-            .rollup(function (v){
-                return v.length;
-            })
-            .entries(data);
-            
+                    return d.Location;
+                }).key(function (d) {
+                    return d.Violation;
+                })
+                .rollup(function (v) {
+                    return v.length;
+                })
+                .entries(data);
+
             return {
-              "citationsCount":  citationsCount,
-              "ticketsByLot": ticketsByLot
-                
+                "citationsCount": citationsCount,
+                "ticketsByLot": ticketsByLot
+
             };
 
 
@@ -77,7 +96,7 @@
                 parkingList[object.key] = object.value;
             }
             ticketsByLot = {}
-            for (object of data["ticketsByLot"]){
+            for (object of data["ticketsByLot"]) {
                 ticketsByLot[object.key] = object.values;
             }
             let maxCount = citationsCount[0]["value"]
@@ -112,7 +131,7 @@
 
             var getColorForPercentage = function (parkingLot) {
                 let pct = 1 - parkingList[parkingLot] / maxCount;
-            
+
                 for (var i = 1; i < percentColors.length - 1; i++) {
                     if (pct < percentColors[i].pct) {
                         break;
@@ -132,8 +151,10 @@
                 return 'rgb(' + [color.r, color.g, color.b].join(',') + ')';
                 // or output as hex if preferred
             }
-
-            var mymap = L.map('mapid').setView([43.00165049553834, -78.78735780715944], 14.5);
+            if(mymap){
+                mymap.remove();
+            }
+            mymap = L.map('mapid').setView([43.00165049553834, -78.78735780715944], 14.5);
             mymap.invalidateSize();
             L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
                 attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
@@ -152,7 +173,7 @@
             let jarvisALot = L.rectangle(jarvisABounds, {
                 color: getColorForPercentage("Jarvis A"),
                 weight: 1
-            }).bindTooltip("Jarvis A").addTo(mymap);
+            }).bindTooltip("Jarvis A").on('click', () => showChart("Jarvis A")).addTo(mymap);;
             let jarvisBBounds = [
                 [43.004226, -78.787537],
                 [43.003435, -78.786319]
@@ -160,16 +181,16 @@
             L.rectangle(jarvisBBounds, {
                 color: getColorForPercentage("Jarvis B"),
                 weight: 1
-            }).bindTooltip("Jarvis B").addTo(mymap);
+            }).bindTooltip("Jarvis B").on('click', () => showChart("Jarvis B")).addTo(mymap);;
 
             let governorsABounds = [
                 [43.002909, -78.791195],
                 [43.002418, -78.790160]
             ];
             L.rectangle(governorsABounds, {
-                color: getColorForPercentage("Governors B"),
+                color: getColorForPercentage("Governors A"),
                 weight: 1
-            }).bindTooltip("Governors A").addTo(mymap);
+            }).bindTooltip("Governors A").on('click', () => showChart("Governors A")).addTo(mymap);;
 
             let governorsCBounds = [
                 [43.004213, -78.791208],
@@ -178,7 +199,7 @@
             L.rectangle(governorsCBounds, {
                 color: getColorForPercentage("Governors C"),
                 weight: 1
-            }).bindTooltip("Governors C").addTo(mymap);
+            }).bindTooltip("Governors C").on('click', () => showChart("Governors C")).addTo(mymap);;
 
             let governorsDBounds = [
                 [43.004219, -78.792474],
@@ -187,7 +208,7 @@
             L.rectangle(governorsDBounds, {
                 color: getColorForPercentage("Governors D"),
                 weight: 1
-            }).bindTooltip("Governors D").addTo(mymap);
+            }).bindTooltip("Governors D").on('click', () => showChart("Governors D")).addTo(mymap);;
 
             let governorsEBounds = [
                 [43.004181, -78.794725],
@@ -196,7 +217,7 @@
             L.rectangle(governorsEBounds, {
                 color: getColorForPercentage("Governors E"),
                 weight: 1
-            }).bindTooltip("Governors E").addTo(mymap);
+            }).bindTooltip("Governors E").on('click', () => showChart("Governors E")).addTo(mymap);;
 
             let fronczakBBounds = [
                 [43.002411, -78.791176],
@@ -205,7 +226,7 @@
             L.rectangle(fronczakBBounds, {
                 color: getColorForPercentage("Fronczak B"),
                 weight: 1
-            }).bindTooltip("Fronczak B").addTo(mymap);
+            }).bindTooltip("Fronczak B").on('click', () => showChart("Hoch A")).addTo(mymap);;
 
             let hochsetterABounds = [
                 [42.999310, -78.792171],
@@ -214,7 +235,7 @@
             L.rectangle(hochsetterABounds, {
                 color: getColorForPercentage("Hoch A"),
                 weight: 1
-            }).bindTooltip("Hochsetter A").addTo(mymap);
+            }).bindTooltip("Hochsetter A").on('click', () => showChart("Hoch A")).addTo(mymap);
 
             let hochsetterBBounds = [
                 [42.999394, -78.790945],
@@ -223,7 +244,7 @@
             L.rectangle(hochsetterBBounds, {
                 color: getColorForPercentage("Hoch B"),
                 weight: 1
-            }).bindTooltip("Hochsetter B").addTo(mymap);
+            }).bindTooltip("Hochsetter B").addTo(mymap).on('click', () => showChart("Hoch B"));
 
             let jacobsABounds = [
                 [42.998873, -78.788707],
@@ -232,7 +253,7 @@
             L.rectangle(jacobsABounds, {
                 color: getColorForPercentage("Jacobs A"),
                 weight: 1
-            }).bindTooltip("Jacobs A").addTo(mymap);
+            }).bindTooltip("Jacobs A").addTo(mymap).addTo(mymap).on('click', () => showChart("Jacobs B"));
 
             let jacobsBBounds = [
                 [42.998865, -78.787484],
@@ -278,7 +299,7 @@
                 color: getColorForPercentage("Slee B"),
                 weight: 1
             }).bindTooltip("Slee B").addTo(mymap).on('click', () => showChart("Slee B"));
-        
+
             let cookeABounds = [
                 [42.999683, -78.793812],
                 [42.999317, -78.792731]
@@ -337,15 +358,16 @@
 
 
         });
+        
         let currentChart;
         let showChart = (lot) => {
-            if(currentChart){
+            if (currentChart) {
                 currentChart.destroy();
             }
-            
+
             let lotData = ticketsByLot[lot];
-            lotData.sort((a, b)=> {
-               return  b.value-a.value;
+            lotData.sort((a, b) => {
+                return b.value - a.value;
             });
             console.log(ticketsByLot[lot]);
 
@@ -355,17 +377,16 @@
             let otherLabel = "other";
 
             let i = 0;
-            for(object of lotData){
-                if(i<5){
+            for (object of lotData) {
+                if (i < 5) {
                     label = object.key;
                     values.push(object.value);
                     labels.push(label.toLowerCase());
+                } else {
+                    other += object.value;
                 }
-                else{
-                    other+=object.value;
-                }
-                i+=1;
-               
+                i += 1;
+
             }
             values.push(other);
             labels.push(otherLabel);
@@ -389,7 +410,7 @@
                     },
                     title: {
                         display: true,
-                        text: 'Types of tickets written at '+lot
+                        text: 'Types of tickets written at ' + lot
                     }
                 }
             });
@@ -398,6 +419,55 @@
         let closeWindow = () => {
             $("#chartPanel").css("display", "none");
         }
+        }
+       loadData(0, 24);
+
+        window.onload = function(){
+    $( "#slider-range" ).slider({
+        values: [0, 24],
+        range: true,
+        min: 0,
+        max: 23,
+        change: (event, ui) => {
+            let firstDate = new Date(2018, 11, 24, ui.values[0], 0, 0, 0);
+            let secondDate = new Date(2018, 11, 24, ui.values[1], 0, 0, 0);
+            console.log(firstDate.getHours());
+            console.log(secondDate.getHours());
+            loadData(firstDate.getHours(), secondDate.getHours());
+        }
+    }).each(function() {
+
+        // Add labels to slider whose values 
+        // are specified by min, max
+    
+        // Get the options for this slider (specified above)
+        var opt = $(this).data().uiSlider.options;
+    
+        // Get the number of possible values
+        var vals = opt.max - opt.min;
+    
+        // Position the labels
+        for (var i = 1; i <= vals; i++) {
+    
+            // Create a new element and position it with percentages
+            if(i<12){
+                var el = $('<label>' + (i + opt.min) + "am"+ '</label>').css('left', (i/vals*100) + '%');;
+            }
+            else{
+                var el = $('<label>' + (i + opt.min -12) + "pm"+ '</label>').css('left', (i/vals*100) + '%');;
+            }
+            
+            
+    
+            // Add the element inside #slider
+            $("#slider-range").append(el);
+    
+    
+        }
+    
+    });;
+}
+
     </script>
     <style>
         #mapid {
@@ -412,13 +482,16 @@
         #chartPanel,
         #mapid {
             width: 100%;
-            height: 100%;
+            height: 80%;
             position: absolute;
 
+
         }
+
         #close {
             float: right;
         }
+
         #chartPanel {
             z-index: 10;
             width: 40%;
@@ -426,6 +499,20 @@
             top: 0;
             right: 0;
             background: white;
+        }
+
+        #slider-range {
+            position: absolute;
+            bottom: 20px;
+            width: 80%;
+        }
+
+        #slider-range label {
+            position: absolute;
+            width: 20px;
+            margin-top: 20px;
+            margin-left: -10px;
+            text-align: center;
         }
     </style>
 </body>

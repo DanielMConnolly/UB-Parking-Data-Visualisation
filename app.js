@@ -21,7 +21,7 @@ const express = require('express')
 const app = express()
 var path=require('path');
 var fs = require('fs');
-const port = 3000
+const port = 3002
 
 app.get('/', (req, res) =>   res.sendFile(path.join(__dirname+'/map.html')))
 
@@ -38,5 +38,8 @@ app.get('/citations', function(req, res) {
   
    
   });
+  app.use(express.static( path.join(__dirname, 'public')));
+
+
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
